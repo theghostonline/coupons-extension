@@ -1,38 +1,50 @@
+// === Promo‑Code Automation Content Script ===
 let isSelectionEnabled = false;
 let isApplyButtonSelectionEnabled = false;
 let isPriceFieldSelectionEnabled = false;
 let isRemoveButtonSelectionEnabled = false;
+
 let selectedInputSelector = null;
 let applyButtonSelector = null;
 let priceFieldSelector = null;
 let removeButtonSelector = null;
+
 let automationRunning = false;
 let promoCodes = [];
 let popularWords = [];
 const usedCodes = new Set();
 
+// ---------- Message Handling ----------
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === "enableSelection") {
-    enableSelectionMode("selection");
-  } else if (message.action === "enableApplyButtonSelection") {
-    enableSelectionMode("applyButton");
-  } else if (message.action === "enablePriceFieldSelection") {
-    enableSelectionMode("priceField");
-  } else if (message.action === "enableRemoveButtonSelection") {
-    enableSelectionMode("removeButton");
-  } else if (message.action === "applyCodes") {
-    startAutomation(
-      message.interval,
-      message.applyTimeout,
-      message.length,
-      message.usePopularWords,
-      message.useSpecialCharacters
-    );
-  } else if (message.action === "stopAutomation") {
-    stopAutomation();
+  switch (message.action) {
+    case "enableSelection":
+      enableSelectionMode("selection");
+      break;
+    case "enableApplyButtonSelection":
+      enableSelectionMode("applyButton");
+      break;
+    case "enablePriceFieldSelection":
+      enableSelectionMode("priceField");
+      break;
+    case "enableRemoveButtonSelection":
+      enableSelectionMode("removeButton");
+      break;
+    case "applyCodes":
+      startAutomation(
+        message.interval,
+        message.applyTimeout,
+        message.length,
+        message.usePopularWords,
+        message.useSpecialCharacters
+      );
+      break;
+    case "stopAutomation":
+      stopAutomation();
+      break;
   }
 });
 
+// ---------- Global Event Blocker ----------
 function blockAllEvents(event) {
   if (
     (isSelectionEnabled ||
@@ -48,6 +60,7 @@ function blockAllEvents(event) {
   }
 }
 
+// ---------- Selection Mode ----------
 function enableSelectionMode(mode) {
   isSelectionEnabled = mode === "selection";
   isApplyButtonSelectionEnabled = mode === "applyButton";
@@ -87,16 +100,56 @@ function disableSelectionMode() {
   document.removeEventListener("click", selectRemoveButtonElement, true);
 }
 
+// ---------- Hover Highlighting ----------
 function highlightElement(event) {
   const element = event.target;
+  // Skip permanent selections
+  if (element.dataset.selected === "true") return;
+
+  // Store existing outline so we can restore it on mouseout
+  element.dataset.prevOutline = element.style.outline;
   element.style.outline = "2px solid red";
 }
 
 function unhighlightElement(event) {
   const element = event.target;
-  element.style.outline = "";
+  // Keep outline for permanently selected elements
+  if (element.dataset.selected === "true") return;
+
+  // Restore previous outline if one was saved
+  if (element.dataset.prevOutline !== undefined) {
+    element.style.outline = element.dataset.prevOutline;
+    delete element.dataset.prevOutline;
+  } else {
+    element.style.outline = "";
+  }
 }
 
+// ---------- Permanent Selection Helpers ----------
+/**
+ * Adds a dashed outline of given color and marks the element as permanently selected.
+ * @param {HTMLElement} element
+ * @param {string} color
+ */
+function markElementAsSelected(element, color = "blue") {
+  element.dataset.selected = "true";
+  element.style.outline = `2px dashed ${color}`;
+}
+
+/**
+ * Removes permanent selection outline from a previously selected element.
+ * @param {string|null} selector
+ */
+function unmarkPrevious(selector) {
+  if (!selector) return;
+  const prev = document.querySelector(selector);
+  if (prev) {
+    delete prev.dataset.selected;
+    prev.style.outline = "";
+  }
+}
+
+// ---------- Selection Handlers ----------
 function selectInputElement(event) {
   if (!isSelectionEnabled) return;
 
@@ -106,7 +159,9 @@ function selectInputElement(event) {
   const element = event.target;
 
   if (element.tagName.toLowerCase() === "input" || element.isContentEditable) {
+    unmarkPrevious(selectedInputSelector);
     selectedInputSelector = getElementSelector(element);
+    markElementAsSelected(element, "blue");
   } else {
     alert("Please select a valid input field.");
   }
@@ -121,7 +176,9 @@ function selectApplyButtonElement(event) {
   event.stopImmediatePropagation();
 
   const element = event.target;
+  unmarkPrevious(applyButtonSelector);
   applyButtonSelector = getElementSelector(element);
+  markElementAsSelected(element, "orange");
 
   disableSelectionMode();
 }
@@ -133,8 +190,9 @@ function selectPriceFieldElement(event) {
   event.stopImmediatePropagation();
 
   const element = event.target;
+  unmarkPrevious(priceFieldSelector);
   priceFieldSelector = getElementSelector(element);
-  element.style.outline = "2px dashed green";
+  markElementAsSelected(element, "green");
 
   disableSelectionMode();
 }
@@ -146,17 +204,21 @@ function selectRemoveButtonElement(event) {
   event.stopImmediatePropagation();
 
   const element = event.target;
+  unmarkPrevious(removeButtonSelector);
   removeButtonSelector = getElementSelector(element);
+  markElementAsSelected(element, "purple");
 
   disableSelectionMode();
 }
 
+// ---------- Utility ----------
 function getElementSelector(element) {
   if (element.id) return `#${element.id}`;
   if (element.className) return `.${Array.from(element.classList).join(".")}`;
   return element.tagName.toLowerCase();
 }
 
+// ---------- Initial Data Load ----------
 async function loadInitialData() {
   try {
     const promoCodesResponse = await fetch(
@@ -176,6 +238,7 @@ async function loadInitialData() {
   }
 }
 
+// ---------- Handler Factory ----------
 function getSelectionHandler(mode) {
   switch (mode) {
     case "selection":
@@ -191,6 +254,7 @@ function getSelectionHandler(mode) {
   }
 }
 
+// ---------- Automation ----------
 function startAutomation(
   interval = 100,
   applyTimeout = 100,
@@ -276,6 +340,7 @@ function stopAutomation() {
   }
 }
 
+// ---------- Promo Code Generator ----------
 function generateUniquePromoCode(
   length,
   usePopularWords,
@@ -290,21 +355,16 @@ function generateUniquePromoCode(
   if (usePopularWords) {
     const word = popularWords[Math.floor(Math.random() * popularWords.length)];
 
-    // Generate a random number between 0 and 18 (inclusive)
-    const randomMultiple = Math.floor(Math.random() * 19); // 0..18
+    // Random multiple of 5 between 0 and 90 (0 means no digit)
+    const randomMultiple = Math.floor(Math.random() * 19);
 
-    // If randomMultiple == 0, do not add a digit; otherwise, calculate the digit
     if (randomMultiple === 0) {
       generatedCode = word;
     } else {
-      const randomDigit = randomMultiple * 5; // Multiples of 5 in the range [5..90]
-
-      const position = Math.random() < 0.05 ? "before" : "after"; // 5% chance to add the digit before the word
-      if (position === "before") {
-        generatedCode = randomDigit + word;
-      } else {
-        generatedCode = word + randomDigit;
-      }
+      const randomDigit = randomMultiple * 5;
+      const position = Math.random() < 0.05 ? "before" : "after"; // 5% chance before
+      generatedCode =
+        position === "before" ? randomDigit + word : word + randomDigit;
     }
   } else {
     const allCharacters = useSpecialCharacters
@@ -318,7 +378,7 @@ function generateUniquePromoCode(
     }
   }
 
-  // Ensure the code is unique
+  // Ensure uniqueness
   if (usedCodes.has(generatedCode)) {
     return generateUniquePromoCode(
       length,
@@ -331,10 +391,11 @@ function generateUniquePromoCode(
   return generatedCode;
 }
 
+// ---------- DOM Value Setter ----------
 function setNewPromoCode(element, promoCode) {
   element.value = promoCode;
   element.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-// Load promo codes and popular words once at initialization
+// ---------- Initialization ----------
 loadInitialData();
