@@ -1,48 +1,69 @@
-document.getElementById("select-input").addEventListener("click", () => {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    chrome.tabs.sendMessage(tabs[0].id, { action: "enableSelection" });
+// === popup.js ===
+
+////////////////////  HELPERS  ////////////////////
+
+/**
+ * Sends a message to the active tab and optionally handles the async response.
+ * @param {object} msg
+ * @param {(resp:any)=>void} [cb]
+ */
+function sendToActiveTab(msg, cb) {
+  chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+    if (!tab) return;
+    chrome.tabs.sendMessage(tab.id, msg, cb);
   });
+}
+
+/** Updates button label / color to reflect running state. */
+function refreshUI(running) {
+  automationRunning = running; // keep local flag in sync
+  if (running) {
+    startButton.innerHTML =
+      '<i class="fas fa-stop-circle"></i> Stop Automation';
+    startButton.style.backgroundColor = "#dc3545";
+  } else {
+    startButton.innerHTML = "Start Automation";
+    startButton.style.backgroundColor = "#6366f1";
+  }
+}
+
+////////////////////  DOM HOOKS  ////////////////////
+
+// Selection buttons
+document.getElementById("select-input").addEventListener("click", () => {
+  sendToActiveTab({ action: "enableSelection" });
   window.close();
 });
 
 document.getElementById("select-apply-button").addEventListener("click", () => {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    chrome.tabs.sendMessage(tabs[0].id, {
-      action: "enableApplyButtonSelection",
-    });
-  });
+  sendToActiveTab({ action: "enableApplyButtonSelection" });
   window.close();
 });
 
 document.getElementById("select-price-field").addEventListener("click", () => {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    chrome.tabs.sendMessage(tabs[0].id, {
-      action: "enablePriceFieldSelection",
-    });
-  });
+  sendToActiveTab({ action: "enablePriceFieldSelection" });
   window.close();
 });
 
 document
   .getElementById("select-remove-button")
   .addEventListener("click", () => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      chrome.tabs.sendMessage(tabs[0].id, {
-        action: "enableRemoveButtonSelection",
-      });
-    });
+    sendToActiveTab({ action: "enableRemoveButtonSelection" });
     window.close();
   });
 
+// Start / Stop button
 const startButton = document.getElementById("start-automation");
-let automationRunning = false;
+let automationRunning = false; // local shadow copy
 
 startButton.addEventListener("click", () => {
-  automationRunning = !automationRunning;
-
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (automationRunning) {
-      chrome.tabs.sendMessage(tabs[0].id, {
+  if (automationRunning) {
+    // --- Send STOP ---
+    sendToActiveTab({ action: "stopAutomation" }, () => refreshUI(false));
+  } else {
+    // --- Send START ---
+    sendToActiveTab(
+      {
         action: "applyCodes",
         interval: parseInt(document.getElementById("interval").value, 10),
         applyTimeout: parseInt(
@@ -53,20 +74,19 @@ startButton.addEventListener("click", () => {
         usePopularWords: document.getElementById("use-popular-words").checked,
         useSpecialCharacters: document.getElementById("use-special-characters")
           .checked,
-      });
-      startButton.innerHTML =
-        '<i class="fas fa-stop-circle"></i> Stop Automation';
-      startButton.style.backgroundColor = "#dc3545";
-    } else {
-      chrome.tabs.sendMessage(tabs[0].id, { action: "stopAutomation" });
-      startButton.innerHTML =
-        '<i class="fas fa-play-circle"></i> Start Automation';
-      startButton.style.backgroundColor = "#e64a19";
-    }
-  });
+      },
+      () => refreshUI(true)
+    );
+  }
 });
 
-// Save settings to storage
+// Live status updates while popup is open
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.action === "statusUpdate") refreshUI(msg.running);
+});
+
+////////////////////  SETTINGS PERSISTENCE  ////////////////////
+
 function saveSettings() {
   chrome.storage.sync.set(
     {
@@ -77,13 +97,10 @@ function saveSettings() {
       useSpecialCharacters: document.getElementById("use-special-characters")
         .checked,
     },
-    () => {
-      console.log("Settings saved.");
-    }
+    () => console.log("Settings saved.")
   );
 }
 
-// Add event listeners to save settings on change
 document.getElementById("interval").addEventListener("input", saveSettings);
 document
   .getElementById("apply-timeout")
@@ -96,7 +113,6 @@ document
   .getElementById("use-special-characters")
   .addEventListener("change", saveSettings);
 
-// Load settings from storage
 function loadSettings() {
   chrome.storage.sync.get(
     {
@@ -106,17 +122,25 @@ function loadSettings() {
       usePopularWords: true,
       useSpecialCharacters: false,
     },
-    (settings) => {
-      document.getElementById("interval").value = settings.interval;
-      document.getElementById("apply-timeout").value = settings.applyTimeout;
-      document.getElementById("length").value = settings.length;
-      document.getElementById("use-popular-words").checked =
-        settings.usePopularWords;
+    (s) => {
+      document.getElementById("interval").value = s.interval;
+      document.getElementById("apply-timeout").value = s.applyTimeout;
+      document.getElementById("length").value = s.length;
+      document.getElementById("use-popular-words").checked = s.usePopularWords;
       document.getElementById("use-special-characters").checked =
-        settings.useSpecialCharacters;
+        s.useSpecialCharacters;
     }
   );
 }
 
-// Call loadSettings when the popup is opened
-document.addEventListener("DOMContentLoaded", loadSettings);
+////////////////////  INIT  ////////////////////
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadSettings();
+
+  // Ask content‑script whether automation is running, so UI is correct even
+  // if user closed and reopened the popup.
+  sendToActiveTab({ action: "getStatus" }, (resp) =>
+    refreshUI(Boolean(resp?.running))
+  );
+});

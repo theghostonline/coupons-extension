@@ -1,120 +1,207 @@
 <!DOCTYPE html>
-<html lang="en" xml:lang="en">
+<html lang="en">
   <head>
-    <title>Promo Code Auto-Apply & Brute-Force</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Promo Code Helper</title>
+
+    <!-- Icons -->
     <link
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
       rel="stylesheet"
     />
+
+    <!-- Minimal‑modern, compact -->
     <style>
+      :root {
+        --accent: #6366f1; /* indigo‑500 */
+        --accent-hover: #4f52e7; /* indigo‑600 */
+        --text: #111;
+        --muted: #666;
+        --border: #d0d4da;
+        --radius: 6px;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font: inherit;
+      }
+
       body {
-        font-family: "Arial", sans-serif;
-        padding: 15px;
-        width: 320px;
-        background: linear-gradient(135deg, #ffffff, #f9f9f9);
-        border-radius: 12px;
-        color: #333;
+        font-family: Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
+        width: 280px; /* a bit slimmer */
+        padding: 16px 14px 20px;
+        color: var(--text);
+        background: #fff;
       }
+
       h3 {
+        font-size: 0.95rem;
+        font-weight: 600;
+        margin-bottom: 18px;
         text-align: center;
-        font-size: 1.5em;
-        color: #007bff;
-        margin-bottom: 20px;
       }
+      h3 i {
+        margin-right: 6px;
+        color: var(--accent);
+      }
+
+      /* ---------- BUTTONS ---------- */
       button {
+        width: 100%;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 8px;
-        background-color: #ff7043;
-        color: #fff;
-        border: none;
-        padding: 8px 10px;
-        border-radius: 8px;
-        font-size: 1em;
+        gap: 6px;
+        padding: 7px 8px;
+        margin-bottom: 10px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--text);
+        background: #f7f7f8;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
         cursor: pointer;
-        transition: background-color 0.3s ease;
-        margin-bottom: 12px;
+        transition: background 0.2s ease;
       }
       button:hover {
-        background-color: #e64a19;
+        background: #eef0f3;
       }
       button i {
-        font-size: 1.1em;
+        font-size: 0.9rem;
+        color: var(--accent);
       }
+
+      /* Primary action */
+      #start-automation {
+        color: #fff !important;
+        background: var(--accent);
+        border: none;
+        margin-top: 2px;
+      }
+      #start-automation:hover {
+        background: var(--accent-hover);
+      }
+
+      /* ---------- INPUTS ---------- */
       label {
-        font-size: 0.95em;
-        color: #555;
-        margin-bottom: 6px;
+        display: block;
+        font-size: 0.7rem;
+        color: var(--muted);
+        margin-bottom: 3px;
       }
-      input {
-        width: 80%;
-        padding: 10px;
-        margin-bottom: 15px;
-        border: 1px solid #ccc;
-        border-radius: 8px;
-        font-size: 0.95em;
+      input[type="number"] {
+        width: 100%;
+        padding: 7px 8px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        font-size: 0.75rem;
+        margin-bottom: 14px;
         background: #fff;
-        color: #333;
+        color: var(--text);
       }
-      input:focus {
+      input[type="number"]:focus {
         outline: none;
-        border-color: #ff7043;
-        box-shadow: 0 0 6px rgba(255, 112, 67, 0.3);
+        border-color: var(--accent);
       }
-      input[type="checkbox"] {
-        width: auto;
-        margin-right: 1px;
-      }
-      .checkbox-container {
+
+      /* ---------- TOGGLE SWITCHES ---------- */
+      .toggle-row {
         display: flex;
+        justify-content: space-between;
         align-items: center;
-        gap: 10px;
-        margin-bottom: 15px;
+        margin-bottom: 12px;
+        font-size: 0.75rem;
       }
-      .hidden {
-        display: none;
+
+      .switch {
+        position: relative;
+        display: inline-block;
+        width: 32px;
+        height: 18px;
+      }
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .slider {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #cfd4da;
+        border-radius: 34px;
+        transition: 0.25s;
+      }
+      .slider:before {
+        position: absolute;
+        content: "";
+        height: 14px;
+        width: 14px;
+        left: 2px;
+        bottom: 2px;
+        background: #fff;
+        border-radius: 50%;
+        transition: 0.25s;
+      }
+      input:checked + .slider {
+        background: var(--accent);
+      }
+      input:checked + .slider:before {
+        transform: translateX(14px);
       }
     </style>
   </head>
-  <body>
-    <h3><i class="fas fa-tags"></i> Brute-Force Promo Codes</h3>
 
+  <body>
+    <h3><i class="fas fa-tags"></i> Promo Codes Applier</h3>
+
+    <!-- element selectors -->
     <button id="select-input">
-      <i class="fas fa-i-cursor"></i> Select Input Field
+      <i class="fas fa-i-cursor"></i> Input Field
     </button>
     <button id="select-apply-button">
-      <i class="fas fa-mouse-pointer"></i> Select Apply Button
+      <i class="fas fa-hand-pointer"></i> Apply Button
     </button>
     <button id="select-price-field">
-      <i class="fas fa-dollar-sign"></i> Select Price Field
+      <i class="fas fa-dollar-sign"></i> Price Field
     </button>
     <button id="select-remove-button">
-      <i class="fas fa-backspace"></i> Select Remove Button
+      <i class="fas fa-backspace"></i> Remove Button
     </button>
 
-    <label for="interval">Interval Between Attempts (ms):</label>
+    <!-- numeric settings -->
+    <label for="interval">Interval (ms)</label>
     <input type="number" id="interval" value="1000" min="100" step="100" />
 
-    <label for="apply-timeout">Timeout After Apply (ms):</label>
+    <label for="apply-timeout">Timeout (ms)</label>
     <input type="number" id="apply-timeout" value="500" min="100" step="100" />
 
-    <label for="length">Generated Promo Code Length:</label>
-    <input type="number" id="length" value="6" min="3" max="50" step="1" />
+    <label for="length">Code Length</label>
+    <input type="number" id="length" value="6" min="3" max="50" />
 
-    <div class="checkbox-container">
-      <input type="checkbox" id="use-popular-words" checked />
-      <label for="use-popular-words">Use Popular Words</label>
+    <!-- toggles -->
+    <div class="toggle-row">
+      <span>Popular words</span>
+      <label class="switch">
+        <input type="checkbox" id="use-popular-words" checked />
+        <span class="slider"></span>
+      </label>
     </div>
 
-    <div class="checkbox-container">
-      <input type="checkbox" id="use-special-characters" />
-      <label for="use-special-characters">Include Special Characters</label>
+    <div class="toggle-row">
+      <span>Special chars</span>
+      <label class="switch">
+        <input type="checkbox" id="use-special-characters" />
+        <span class="slider"></span>
+      </label>
     </div>
 
-    <button id="start-automation">
-      <i class="fas fa-play-circle"></i> Start Automation
-    </button>
+    <!-- start / stop -->
+    <button id="start-automation">Start Automation</button>
 
     <script src="popup.js"></script>
   </body>

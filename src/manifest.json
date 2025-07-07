@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Promo Code Smart Brute-Force",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Use popular promo codes, auto-apply them, and employ smart brute-force methods with popular words when necessary.",
   "permissions": ["activeTab", "storage"],
   "host_permissions": ["https://*/*", "http://*/*"],
