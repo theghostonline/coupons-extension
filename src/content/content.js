@@ -51,7 +51,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         msg.applyTimeout,
         msg.length,
         msg.usePopularWords,
-        msg.useSpecialCharacters
+        msg.useSpecialCharacters,
+        msg.usePopularCodes
       );
       break;
 
@@ -128,7 +129,7 @@ function disableSelectionMode() {
 
 function highlightElement(evt) {
   const el = evt.target;
-  if (el.dataset.selected === "true") return; // keep permanent outline
+  if (el.dataset.selected === "true") return;
   el.dataset.prevOutline = el.style.outline;
   el.style.outline = "2px solid red";
 }
@@ -145,7 +146,6 @@ function markElementAsSelected(el, color = "blue") {
   el.dataset.selected = "true";
   el.style.outline = `2px dashed ${color}`;
 }
-
 function unmarkPrevious(selector) {
   if (!selector) return;
   const prev = document.querySelector(selector);
@@ -154,14 +154,11 @@ function unmarkPrevious(selector) {
     prev.style.outline = "";
   }
 }
-
 function restoreOutline(el) {
   if (el.dataset.prevOutline !== undefined) {
     el.style.outline = el.dataset.prevOutline;
     delete el.dataset.prevOutline;
-  } else {
-    el.style.outline = "";
-  }
+  } else el.style.outline = "";
 }
 
 ////////////////////  SELECTION HANDLERS  ////////////////////
@@ -172,49 +169,40 @@ function selectInputElement(evt) {
   evt.stopImmediatePropagation();
 
   const el = evt.target;
-  const ok = el.tagName.toLowerCase() === "input" || el.isContentEditable;
-
-  if (ok) {
+  if (el.tagName.toLowerCase() === "input" || el.isContentEditable) {
     unmarkPrevious(selectedInputSelector);
     selectedInputSelector = getElementSelector(el);
     markElementAsSelected(el, "blue");
-    disableSelectionMode(); // success → exit mode
+    disableSelectionMode();
   } else {
     alert("Please select a valid input field.");
-    restoreOutline(el); // remove red border
-    // keep selection mode active so user can click again
+    restoreOutline(el);
   }
 }
-
 function selectApplyButtonElement(evt) {
   if (!isApplyButtonSelectionEnabled) return;
   evt.preventDefault();
   evt.stopImmediatePropagation();
-
   const el = evt.target;
   unmarkPrevious(applyButtonSelector);
   applyButtonSelector = getElementSelector(el);
   markElementAsSelected(el, "orange");
   disableSelectionMode();
 }
-
 function selectPriceFieldElement(evt) {
   if (!isPriceFieldSelectionEnabled) return;
   evt.preventDefault();
   evt.stopImmediatePropagation();
-
   const el = evt.target;
   unmarkPrevious(priceFieldSelector);
   priceFieldSelector = getElementSelector(el);
   markElementAsSelected(el, "green");
   disableSelectionMode();
 }
-
 function selectRemoveButtonElement(evt) {
   if (!isRemoveButtonSelectionEnabled) return;
   evt.preventDefault();
   evt.stopImmediatePropagation();
-
   const el = evt.target;
   unmarkPrevious(removeButtonSelector);
   removeButtonSelector = getElementSelector(el);
@@ -229,7 +217,6 @@ function getElementSelector(el) {
   if (el.className) return `.${Array.from(el.classList).join(".")}`;
   return el.tagName.toLowerCase();
 }
-
 function getSelectionHandler(mode) {
   switch (mode) {
     case "selection":
@@ -253,7 +240,6 @@ async function loadInitialData() {
       (r) => r.json()
     );
     promoCodes = pc.promoCodes || [];
-
     const pw = await fetch(
       chrome.runtime.getURL("data/popular-words.json")
     ).then((r) => r.json());
@@ -270,8 +256,9 @@ function startAutomation(
   interval = 100,
   applyTimeout = 100,
   length = 6,
-  usePopular = true,
-  useSpecial = false
+  usePopularWords = true,
+  useSpecialChars = false,
+  usePopularCodes = true
 ) {
   if (automationRunning) {
     alert("Automation already running.");
@@ -279,10 +266,10 @@ function startAutomation(
   }
 
   if (!selectedInputSelector || !applyButtonSelector || !priceFieldSelector) {
-    alert("Select input, apply button, and price field before starting.");
+    alert("Select input, apply button, and price field first.");
     return;
   }
-  if (promoCodes.length === 0) {
+  if (promoCodes.length === 0 && usePopularCodes) {
     alert("No promo codes found.");
     return;
   }
@@ -304,10 +291,17 @@ function startAutomation(
     }
 
     const originalPrice = price.textContent.trim();
-    const code =
-      automationIndex < promoCodes.length
-        ? promoCodes[automationIndex]
-        : generateUniquePromoCode(length, usePopular, useSpecial, popularWords);
+
+    const shouldUseList =
+      usePopularCodes && automationIndex < promoCodes.length;
+    const code = shouldUseList
+      ? promoCodes[automationIndex]
+      : generateUniquePromoCode(
+          length,
+          usePopularWords,
+          useSpecialChars,
+          popularWords
+        );
 
     setNewPromoCode(input, code);
     btn.click();
@@ -342,7 +336,7 @@ function stopAutomation() {
 
 ////////////////////  CODE GENERATOR  ////////////////////
 
-function generateUniquePromoCode(length, usePopular, useSpecial, words) {
+function generateUniquePromoCode(len, usePopular, useSpecial, words) {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   const specials = "!@#$%^&*_-+=";
   let code = "";
@@ -358,12 +352,11 @@ function generateUniquePromoCode(length, usePopular, useSpecial, words) {
     }
   } else {
     const alphabet = useSpecial ? chars + specials : chars;
-    for (let i = 0; i < length; i++) {
+    for (let i = 0; i < len; i++)
       code += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
-    }
   }
   return usedCodes.has(code)
-    ? generateUniquePromoCode(length, usePopular, useSpecial, words)
+    ? generateUniquePromoCode(len, usePopular, useSpecial, words)
     : code;
 }
 

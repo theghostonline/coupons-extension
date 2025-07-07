@@ -70,6 +70,7 @@ startButton.addEventListener("click", () => {
           10
         ),
         length: parseInt(document.getElementById("length").value, 10),
+        usePopularCodes: document.getElementById("use-popular-codes").checked, // NEW
         usePopularWords: document.getElementById("use-popular-words").checked,
         useSpecialCharacters: document.getElementById("use-special-characters")
           .checked,
@@ -92,6 +93,7 @@ function saveSettings() {
       interval: document.getElementById("interval").value,
       applyTimeout: document.getElementById("apply-timeout").value,
       length: document.getElementById("length").value,
+      usePopularCodes: document.getElementById("use-popular-codes").checked,
       usePopularWords: document.getElementById("use-popular-words").checked,
       useSpecialCharacters: document.getElementById("use-special-characters")
         .checked,
@@ -111,6 +113,9 @@ document
 document
   .getElementById("use-special-characters")
   .addEventListener("change", saveSettings);
+document
+  .getElementById("use-popular-codes")
+  .addEventListener("change", saveSettings);
 
 function loadSettings() {
   chrome.storage.sync.get(
@@ -118,6 +123,7 @@ function loadSettings() {
       interval: "1000",
       applyTimeout: "500",
       length: "6",
+      usePopularCodes: true,
       usePopularWords: true,
       useSpecialCharacters: false,
     },
@@ -125,6 +131,7 @@ function loadSettings() {
       document.getElementById("interval").value = s.interval;
       document.getElementById("apply-timeout").value = s.applyTimeout;
       document.getElementById("length").value = s.length;
+      document.getElementById("use-popular-codes").checked = s.usePopularCodes;
       document.getElementById("use-popular-words").checked = s.usePopularWords;
       document.getElementById("use-special-characters").checked =
         s.useSpecialCharacters;
