@@ -18,8 +18,7 @@ function sendToActiveTab(msg, cb) {
 function refreshUI(running) {
   automationRunning = running; // keep local flag in sync
   if (running) {
-    startButton.innerHTML =
-      '<i class="fas fa-stop-circle"></i> Stop Automation';
+    startButton.innerHTML = "Stop Automation";
     startButton.style.backgroundColor = "#dc3545";
   } else {
     startButton.innerHTML = "Start Automation";
