@@ -14,6 +14,7 @@ let removeButtonSelector = null;
 let automationRunning = false;
 let automationIntervalId = null;
 let automationIndex = 0;
+let automationConfig = {};
 
 let promoCodes = [];
 let popularWords = [];
@@ -62,6 +63,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     case "getStatus":
       sendResponse({ running: automationRunning });
+      break;
+
+    case "tick":
+      if (automationRunning) performAutomationStep();
       break;
   }
   return false;
@@ -169,7 +174,11 @@ function selectInputElement(evt) {
   evt.stopImmediatePropagation();
 
   const el = evt.target;
-  if (el.tagName.toLowerCase() === "input" || el.isContentEditable) {
+  if (
+    el.tagName.toLowerCase() === "input" ||
+    el.tagName.toLowerCase() === "textarea" ||
+    el.isContentEditable
+  ) {
     unmarkPrevious(selectedInputSelector);
     selectedInputSelector = getElementSelector(el);
     markElementAsSelected(el, "blue");
@@ -274,53 +283,68 @@ function startAutomation(
     return;
   }
 
+  automationConfig = {
+    interval,
+    applyTimeout,
+    length,
+    usePopularWords,
+    useSpecialChars,
+    usePopularCodes,
+  };
+
   automationRunning = true;
   broadcastStatus();
 
-  automationIntervalId = setInterval(() => {
-    if (!automationRunning) return;
+  // Start background timer
+  chrome.runtime.sendMessage({
+    action: "startBackgroundTimer",
+    interval: interval,
+  });
+}
 
-    const input = document.querySelector(selectedInputSelector);
-    const btn = document.querySelector(applyButtonSelector);
-    const price = document.querySelector(priceFieldSelector);
+function performAutomationStep() {
+  if (!automationRunning) return;
 
-    if (!input || !btn || !price) {
-      alert("A selected element is missing.");
+  const input = document.querySelector(selectedInputSelector);
+  const btn = document.querySelector(applyButtonSelector);
+  const price = document.querySelector(priceFieldSelector);
+
+  if (!input || !btn || !price) {
+    alert("A selected element is missing.");
+    stopAutomation();
+    return;
+  }
+
+  const originalPrice = price.textContent.trim();
+
+  const shouldUseList =
+    automationConfig.usePopularCodes && automationIndex < promoCodes.length;
+  const code = shouldUseList
+    ? promoCodes[automationIndex]
+    : generateUniquePromoCode(
+        automationConfig.length,
+        automationConfig.usePopularWords,
+        automationConfig.useSpecialChars,
+        popularWords
+      );
+
+  setNewPromoCode(input, code);
+  btn.click();
+  usedCodes.add(code);
+
+  setTimeout(() => {
+    const newPrice = price.textContent.trim();
+    if (newPrice !== originalPrice) {
       stopAutomation();
-      return;
+      alert("Promo code applied successfully.");
+    } else {
+      const rm = removeButtonSelector
+        ? document.querySelector(removeButtonSelector)
+        : null;
+      if (rm) rm.click();
+      automationIndex++;
     }
-
-    const originalPrice = price.textContent.trim();
-
-    const shouldUseList =
-      usePopularCodes && automationIndex < promoCodes.length;
-    const code = shouldUseList
-      ? promoCodes[automationIndex]
-      : generateUniquePromoCode(
-          length,
-          usePopularWords,
-          useSpecialChars,
-          popularWords
-        );
-
-    setNewPromoCode(input, code);
-    btn.click();
-    usedCodes.add(code);
-
-    setTimeout(() => {
-      const newPrice = price.textContent.trim();
-      if (newPrice !== originalPrice) {
-        stopAutomation();
-        alert("Promo code applied successfully.");
-      } else {
-        const rm = removeButtonSelector
-          ? document.querySelector(removeButtonSelector)
-          : null;
-        if (rm) rm.click();
-        automationIndex++;
-      }
-    }, applyTimeout);
-  }, interval);
+  }, automationConfig.applyTimeout);
 }
 
 function stopAutomation() {
@@ -329,8 +353,7 @@ function stopAutomation() {
     return;
   }
   automationRunning = false;
-  if (automationIntervalId !== null) clearInterval(automationIntervalId);
-  automationIntervalId = null;
+  chrome.runtime.sendMessage({ action: "stopBackgroundTimer" });
   broadcastStatus();
 }
 
@@ -363,7 +386,11 @@ function generateUniquePromoCode(len, usePopular, useSpecial, words) {
 ////////////////////  DOM VALUE SETTER  ////////////////////
 
 function setNewPromoCode(el, code) {
-  el.value = code;
+  if (el.tagName.toLowerCase() === "textarea") {
+    el.textContent = code;
+  } else {
+    el.value = code;
+  }
   el.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
